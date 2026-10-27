@@ -8,6 +8,16 @@ let currentColor = "#f2f2f2"; // kept in memory; resets when the server restarts
 const clients = new Set();
 
 app.use(express.json());
+const fs = require("fs");
+const indexPath = [
+  path.join(__dirname, "public", "index.html"),
+  path.join(__dirname, "index.html"),
+].find(fs.existsSync);
+
+app.get("/", (req, res) => {
+  if (indexPath) return res.sendFile(indexPath);
+  res.status(500).send("index.html not found. Files here: " + fs.readdirSync(__dirname).join(", "));
+});
 app.use(express.static(path.join(__dirname, "public")));
 
 // Each visitor opens this stream and gets color updates pushed to them.
