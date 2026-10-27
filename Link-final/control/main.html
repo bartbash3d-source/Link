@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Shared Color - Control</title>
+<style>
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: #f2f2f2;
+    transition: background-color 0.4s ease;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+  }
+  .panel {
+    background: rgba(255,255,255,0.96);
+    color: #111;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    padding: 16px;
+    margin: 0 12px calc(16px + env(safe-area-inset-bottom, 0px));
+    width: 100%;
+    max-width: 440px;
+    box-sizing: border-box;
+  }
+  .label {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #555;
+    margin: 14px 0 8px;
+  }
+  .label:first-child { margin-top: 0; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+
+  .swatch {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    border: 3px solid #fff;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.4);
+    cursor: pointer;
+    padding: 0;
+    transition: transform 0.15s ease;
+  }
+  .swatch:hover { transform: scale(1.1); }
+  .swatch:active { transform: scale(0.95); }
+
+  .hex-row { display: flex; gap: 8px; align-items: stretch; }
+  input[type="color"] {
+    width: 48px; height: 44px; padding: 2px;
+    border: 1px solid #bbb; border-radius: 10px; background: #fff; cursor: pointer;
+  }
+  input[type="text"] {
+    flex: 1; min-width: 0;
+    height: 44px; box-sizing: border-box;
+    font: 16px ui-monospace, Menlo, Consolas, monospace;
+    padding: 0 12px; border: 1px solid #bbb; border-radius: 10px;
+  }
+  input[type="text"].bad { border-color: #d00; background: #fff4f4; }
+  .btn {
+    height: 44px; padding: 0 14px;
+    border: 0; border-radius: 10px;
+    background: #111; color: #fff;
+    font: 600 14px system-ui, sans-serif;
+    cursor: pointer;
+  }
+  .btn.secondary { background: #e8e8e8; color: #111; }
+  .btn:active { transform: scale(0.97); }
+
+  .fav { position: relative; display: inline-block; }
+  .fav .remove {
+    position: absolute; top: -6px; right: -6px;
+    width: 20px; height: 20px; border-radius: 50%;
+    border: 0; background: #111; color: #fff;
+    font-size: 12px; line-height: 20px; padding: 0; cursor: pointer;
+  }
+  .empty { font-size: 14px; color: #666; }
+
+  button:focus-visible, input:focus-visible { outline: 3px solid #1d6fd6; outline-offset: 2px; }
+
+  #msg {
+    position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+    background: #111; color: #fff; padding: 8px 14px; border-radius: 8px;
+    font-size: 14px; display: none; z-index: 10;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    body, .swatch { transition: none; }
+  }
+</style>
+</head>
+<body>
+  <div id="msg" role="alert"></div>
+
+  <div class="panel">
+    <div class="label">Pick a color</div>
+    <div class="hex-row">
+      <input type="color" id="picker" value="#f2f2f2" aria-label="Color picker">
+      <input type="text" id="hex" value="#f2f2f2" maxlength="7" spellcheck="false"
+             autocapitalize="off" autocomplete="off" aria-label="Hex color code" placeholder="#e63946">
+      <button class="btn" id="apply">Set</button>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn secondary" id="save">&#9733; Save to favorites</button>
+    </div>
+
+    <div class="label">Favorites</div>
+    <div class="row" id="favs"></div>
+
+    <div class="label">Presets</div>
+    <div class="row" id="presets"></div>
+  </div>
+
+<script>
+  var presets = [
+    { name: "Red", value: "#e63946" },
+    { name: "Orange", value: "#f77f00" },
+    { name: "Yellow", value: "#fcd34d" },
+    { name: "Green", value: "#2a9d5c" },
+    { name: "Blue", value: "#1d6fd6" },
+    { name: "Purple", value: "#7b2cbf" },
+    { name: "Pink", value: "#ff6fa5" },
+    { name: "Black", value: "#111111" },
+    { name: "White", value: "#ffffff" }
+  ];
+
+  // If /main was opened with ?key=..., send it along with each change.
+  var key = new URLSearchParams(location.search).get("key") || "";
+
+  var picker = document.getElementById("picker");
+  var hexInput = document.getElementById("hex");
+  var current = "#f2f2f2";
+
+  // Accepts "e63946", "#E63946", "f00" and returns "#e63946", or null if invalid.
+  function normalizeHex(text) {
+    var h = String(text).trim().replace(/^#/, "").toLowerCase();
+    if (/^[0-9a-f]{3}$/.test(h)) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    return /^[0-9a-f]{6}$/.test(h) ? "#" + h : null;
+  }
+
+  function setScreen(color) {
+    current = color;
+    document.body.style.backgroundColor = color;
+    picker.value = color;
+    if (document.activeElement !== hexInput) hexInput.value = color;
+    hexInput.classList.remove("bad");
+  }
+
+  function showMsg(text) {
+    var m = document.getElementById("msg");
+    m.textContent = text;
+    m.style.display = "block";
+    setTimeout(function () { m.style.display = "none"; }, 3000);
+  }
+
+  // Send a color to the server (and everyone watching).
+  function applyColor(color) {
+    setScreen(color);
+    fetch("/color", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-control-key": key },
+      body: JSON.stringify({ color: color })
+    }).then(function (r) {
+      if (!r.ok) showMsg("Could not change color (" + r.status + ")");
+    }).catch(function () { showMsg("Could not reach the server"); });
+  }
+
+  // ---- Favorites (saved in this browser, so open /main on the same device) ----
+  var STORE = "sharedColorFavorites";
+  var favorites = [];
+  try {
+    var saved = JSON.parse(localStorage.getItem(STORE) || "[]");
+    if (Array.isArray(saved)) favorites = saved.map(normalizeHex).filter(Boolean);
+  } catch (e) { favorites = []; }
+
+  function persistFavorites() {
+    try { localStorage.setItem(STORE, JSON.stringify(favorites)); }
+    catch (e) { showMsg("Couldn't save favorites in this browser"); }
+  }
+
+  function makeSwatch(color, label) {
+    var b = document.createElement("button");
+    b.className = "swatch";
+    b.style.background = color;
+    b.setAttribute("aria-label", label);
+    b.title = color;
+    b.addEventListener("click", function () { applyColor(color); });
+    return b;
+  }
+
+  function renderFavorites() {
+    var box = document.getElementById("favs");
+    box.textContent = "";
+    if (!favorites.length) {
+      var p = document.createElement("span");
+      p.className = "empty";
+      p.textContent = "None yet. Pick a color and tap Save.";
+      box.appendChild(p);
+      return;
+    }
+    favorites.forEach(function (color) {
+      var wrap = document.createElement("span");
+      wrap.className = "fav";
+      wrap.appendChild(makeSwatch(color, "Use favorite " + color));
+      var x = document.createElement("button");
+      x.className = "remove";
+      x.textContent = "\u00d7";
+      x.setAttribute("aria-label", "Remove favorite " + color);
+      x.addEventListener("click", function () {
+        favorites = favorites.filter(function (c) { return c !== color; });
+        persistFavorites();
+        renderFavorites();
+      });
+      wrap.appendChild(x);
+      box.appendChild(wrap);
+    });
+  }
+
+  // ---- Wiring ----
+  document.getElementById("apply").addEventListener("click", function () {
+    var c = normalizeHex(hexInput.value);
+    if (!c) { hexInput.classList.add("bad"); showMsg("Enter a hex color like #e63946"); return; }
+    applyColor(c);
+  });
+  hexInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") document.getElementById("apply").click();
+  });
+  hexInput.addEventListener("input", function () {
+    var c = normalizeHex(hexInput.value);
+    hexInput.classList.toggle("bad", hexInput.value.trim() !== "" && !c);
+    if (c) picker.value = c;
+  });
+  hexInput.addEventListener("blur", function () {
+    var c = normalizeHex(hexInput.value);
+    if (c) hexInput.value = c;
+  });
+
+  // Dragging in the picker only previews the code; the color is sent when you let go.
+  picker.addEventListener("input", function () { hexInput.value = picker.value; });
+  picker.addEventListener("change", function () { applyColor(picker.value); });
+
+  document.getElementById("save").addEventListener("click", function () {
+    var c = normalizeHex(hexInput.value) || current;
+    if (favorites.indexOf(c) !== -1) { showMsg(c + " is already a favorite"); return; }
+    favorites.push(c);
+    persistFavorites();
+    renderFavorites();
+    showMsg("Saved " + c);
+  });
+
+  var presetBox = document.getElementById("presets");
+  presets.forEach(function (p) {
+    presetBox.appendChild(makeSwatch(p.value, "Change screen to " + p.name));
+  });
+
+  renderFavorites();
+
+  var events = new EventSource("/events");
+  events.onmessage = function (e) { setScreen(JSON.parse(e.data).color); };
+</script>
+</body>
+</html>
