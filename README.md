@@ -9,9 +9,6 @@ Controller:
 - `/` is the viewer page. It shows the color and has no buttons.
 - `/main` is the controller page. Pressing a button changes the color for everyone.
 
-## Optional: lock the controller
-
-
 ## To Run locally
 
     npm install
