@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Shared Color</title>
+<style>
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: #f2f2f2;
+    transition: background-color 0.4s ease;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+  }
+  .bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    justify-content: center;
+    padding: 20px;
+    margin-bottom: 24px;
+  }
+  button {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    border: 3px solid #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+    cursor: pointer;
+    transition: transform 0.15s ease;
+  }
+  button:hover { transform: scale(1.1); }
+  button:active { transform: scale(0.95); }
+  button:focus-visible { outline: 3px solid #000; outline-offset: 3px; }
+  @media (prefers-reduced-motion: reduce) {
+    body, button { transition: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="bar" id="bar"></div>
+<script>
+  var colors = [
+    { name: "Red", value: "#e63946" },
+    { name: "Orange", value: "#f77f00" },
+    { name: "Yellow", value: "#fcd34d" },
+    { name: "Green", value: "#2a9d5c" },
+    { name: "Blue", value: "#1d6fd6" },
+    { name: "Purple", value: "#7b2cbf" },
+    { name: "Pink", value: "#ff6fa5" },
+    { name: "Black", value: "#111111" },
+    { name: "White", value: "#ffffff" }
+  ];
+
+  function setScreen(color) {
+    document.body.style.backgroundColor = color;
+  }
+
+  // Listen for color changes from the server (including other visitors').
+  var events = new EventSource("/events");
+  events.onmessage = function (e) {
+    setScreen(JSON.parse(e.data).color);
+  };
+
+  var bar = document.getElementById("bar");
+  colors.forEach(function (c) {
+    var b = document.createElement("button");
+    b.style.background = c.value;
+    b.setAttribute("aria-label", "Change screen to " + c.name);
+    b.addEventListener("click", function () {
+      setScreen(c.value); // instant feedback for the person who pressed it
+      fetch("/color", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ color: c.value })
+      });
+    });
+    bar.appendChild(b);
+  });
+</script>
+</body>
+</html>
